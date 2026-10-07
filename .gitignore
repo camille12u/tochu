@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Django, 実行ファイル
+media/
+db.sqlite3
+db.sqlite3-*
+
+# アプリの動作、エラーログ
+logs/
+
+# macOS
+.DS_Store
+
+# 仮想環境
+.conda/
+.vscode/
+
+# 環境変数・秘密情報
+.env
+.env.*
+!.env.example
+
+# 統合仕様書
+StudyLog_specification.md
