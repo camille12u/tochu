@@ -22,5 +22,5 @@ logs/
 .env.*
 !.env.example
 
-# 統合仕様書
-StudyLog_specification.md
+# # 個人用の仕様書・ロードマップ
+/docs/
