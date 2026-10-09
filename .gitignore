@@ -8,7 +8,7 @@ db.sqlite3
 db.sqlite3-*
 
 # アプリの動作、エラーログ
-logs/
+/logs/
 
 # macOS
 .DS_Store
