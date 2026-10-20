@@ -33,6 +33,9 @@ ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
 ACCOUNT_LOGIN_METHODS = {'email'}
 ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
 
+# ログイン成功後の標準の移動先
+LOGIN_REDIRECT_URL = '/learning/'
+
 # 開発用メール設定
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
@@ -45,6 +48,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'accounts.apps.AccountsConfig',
+    'learning.apps.LearningConfig',
     'allauth',
     'allauth.account',
 ]

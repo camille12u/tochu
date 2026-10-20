@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TOCHU {% block title %}{% endblock title %}</title>
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="{% url 'top' %}">TOCHU</a>
+            <ul>
+                {% if user.is_authenticated %}
+                <li><a href="{% url 'log_list' %}">学習記録</a></li>
+                <li><a href="{% url 'account_logout' %}">ログアウト</a></li>
+                {% else %}
+                <li><a href="{% url 'account_login' %}">ログイン</a></li>
+                <li><a href="{% url 'account_signup' %}">会員登録</a></li>
+                {% endif %}
+            </ul>
+
+        </nav>
+    </header>
+    <main>
+        {% block content %}
+        {% endblock content %}
+    </main>
+    <footer></footer>
+</body>
+</html>
