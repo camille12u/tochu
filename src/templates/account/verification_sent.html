@@ -1,15 +1,15 @@
 {% extends "base.html" %}
 
-{% block title %}認証メール送信 メール再送案内{% endblock title %}
+{% block title %}確認メール送信 メール再送案内{% endblock title %}
 
 {% block content %}
 <h1>仮登録完了</h1>
-<p>仮登録の際に入力されたメールアドレスに認証メールを送信しました。
+<p>仮登録の際に入力されたメールアドレスに確認メールを送信しました。
     メール内のリンクにアクセスして、本登録手続きを完了させてください。</p>
 <p>メインの受信トレイにメールが見当たらない場合は、迷惑メールフォルダを確認してください。</p>
-<p>数分経っても認証メールが届かない場合は、メール再送ボタンを押してください。</p>
+<p>数分経っても確認メールが届かない場合は、メール再送ボタンを押してください。</p>
 <form action="{% url 'resend_email' %}" method="POST">
     {% csrf_token %}
-    <button type="submit">認証メール再送</button>
+    <button type="submit">確認メール再送</button>
 </form>
 {% endblock content %}
