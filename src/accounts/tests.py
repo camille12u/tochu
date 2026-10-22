@@ -1,10 +1,13 @@
-from django.test import TestCase
+from django.core import mail
 from django.db import IntegrityError, transaction
+from django.test import TestCase
+from django.urls import reverse
 
 from .models import User, Profile
 
 
 class UserManagerTests(TestCase):
+    """User作成テスト"""
     def test_create_user_with_valid_credentials(self):
         test_email = 'sample@mail.com'
         test_password = 'django_123'
@@ -100,3 +103,22 @@ class UserManagerTests(TestCase):
         self.assertEqual(actual.id, expected_id)
         self.assertEqual(actual.name, expected_name)
         self.assertEqual(actual.bio, expected_bio)
+
+
+class ResendingEmailViewTests(TestCase):
+    # ログイン途中の情報がない状態でPOSTすると、ログイン画面へ転送される検証
+    def test_post_without_pending_login_redirects_to_login(self):
+        path = reverse('resend_email')
+        response = self.client.post(path)
+
+        self.assertRedirects(response, '/accounts/login/')
+        self.assertEqual(len(mail.outbox), 0)
+
+    # GETは許可されず、メールも送信されない検証
+    def test_get_is_not_allowed_and_sends_no_email(self):
+        path = reverse('resend_email')
+        response = self.client.get(path)
+        expected = 405
+
+        self.assertEqual(response.status_code, expected)
+        self.assertEqual(len(mail.outbox), 0)
