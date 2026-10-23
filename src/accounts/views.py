@@ -46,5 +46,6 @@ class ResendingEmailView(View):
                         '続けて再送することはできません。しばらく待ってから、もう一度お試しください。'
                         )
 
-                # メール認証送信済み画面へ遷移
-                return redirect('account_email_verification_sent') 
+                # 確認メール送信済み画面へ遷移
+                # /accounts/confirm-email/
+                return redirect('account_email_verification_sent')

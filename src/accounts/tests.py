@@ -1,9 +1,12 @@
+from allauth.account.models import EmailAddress, Login
+from allauth.account.internal.stagekit import LOGIN_SESSION_KEY
 from django.core import mail
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.urls import reverse
 
 from .models import User, Profile
+from .views import EmailVerificationStage
 
 
 class UserManagerTests(TestCase):
@@ -121,4 +124,84 @@ class ResendingEmailViewTests(TestCase):
         expected = 405
 
         self.assertEqual(response.status_code, expected)
+        self.assertEqual(len(mail.outbox), 0)
+
+    # 有効なログイン途中情報がある状態でPOSTすると、確認メールを再送する
+    def test_post_with_valid_pending_login_resends_verification_email(self):
+        # 再送対象のユーザーと、そのユーザーに属する未確認メール情報を用意する
+        test_email = 'sample@example.com'
+        test_password = 'd_jan_go'
+        test_user = User.objects.create_user(test_email, test_password)
+        unconfirmed_mail = EmailAddress.objects.create(
+            user=test_user,
+            email=test_user.email,
+            verified=False,
+        )
+
+        # 現在の段階をメール確認待ちとした、ログイン途中情報を作る
+        login = Login(
+            user=unconfirmed_mail.user,
+            email=unconfirmed_mail.email,
+            state={
+                'stages': {
+                    'current': EmailVerificationStage.key
+                    },
+                }
+            )
+
+        # 通常ログインによる初回送信と送信制限を避けるため、途中情報を直接セッションに保存する
+        test_session = self.client.session
+        test_session[LOGIN_SESSION_KEY] = login.serialize()
+        test_session.save()
+
+        # 途中情報を保存したクライアントから再送を要求する
+        resend_url = reverse('resend_email')
+        response = self.client.post(resend_url)
+
+        # 結果の検証
+        self.assertRedirects(response, '/accounts/confirm-email/')
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [test_email])
+
+    # 対象メールがすでに確認済みかつログインしていない場合、
+    # 再送せずにログイン画面に遷移することをテスト
+    def test_post_with_verified_email_sends_no_email(self):
+        # 再送対象のユーザーと、そのユーザーに属する確認メール情報を用意する
+        test_email = 'sample@example.com'
+        test_password = 'd_jan_go'
+        test_user = User.objects.create_user(test_email, test_password)
+        confirmed_mail = EmailAddress.objects.create(
+            user=test_user,
+            email=test_user.email,
+            verified=True,
+        )
+
+        # 先行する段階を処理済みとし、メール確認待ちの途中情報を再現する
+        login = Login(
+            user=confirmed_mail.user,
+            email=confirmed_mail.email,
+            state={
+                'stages': {
+                    'current': EmailVerificationStage.key,
+                    'login_by_code': {
+                        'handled': True
+                        },
+                    'verify_phone': {
+                        'handled': True
+                        },
+                    },
+                }
+            )
+
+        # 通常ログインによる初回送信と送信制限を避けるため、途中情報を直接セッションに保存する
+        test_session = self.client.session
+        test_session[LOGIN_SESSION_KEY] = login.serialize()
+        test_session.save()
+
+        # 確認済みメールへの再送を拒否することを確認する
+        resend_url = reverse('resend_email')
+        response = self.client.post(resend_url)
+
+        # 検証
+        self.assertRedirects(response, '/accounts/login/')
         self.assertEqual(len(mail.outbox), 0)
