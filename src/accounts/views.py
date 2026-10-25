@@ -16,24 +16,37 @@ class ResendingEmailView(View):
 
         # 途中情報がない・期限切れなどの場合は、ログインからやり直す
         if verification_stage is None:
+            messages.warning(request, '確認手続きを続けられませんでした。もう一度ログインしてください。')
             return redirect('account_login')
 
-        # 手続きがあっても、対象ユーザーがいなければ再送処理には進めない
+        # 有効な途中情報あるが、対象ユーザーを取得できない場合再送処理せず、トップページに遷移
         elif verification_stage and verification_stage.login.user is None:
-            return redirect('account_login')
+            messages.warning(
+                request, '確認手続きを続けられませんでした。ログイン、または会員登録からやり直してください'
+                )
+            return redirect('top')
     
-        else: # 有効な手続きと対象ユーザーを取得できた
+        else: 
+            # 有効な手続きと対象ユーザーを取得できた
             # メール確認待ちの手続きに対応するEmailAddressを取得する
             # 取得できない場合はNoneが返る
             emali_object = get_address_for_login(verification_stage.login)
 
+            # 対象のメール情報がない
             if emali_object is None:
-                return redirect('account_login') # 対象のメール情報がない
+                messages.warning(
+                    request, '確認手続きを続けられませんでした。もう一度ログインしてください。'
+                )
+                return redirect('account_login')
 
+            # 対象のメール情報があり、既に確認済み
             elif emali_object.verified:
-                return redirect('account_login') # 対象のメール情報があり、既に確認済み
+                messages.info(
+                    request, 'メールアドレスの確認はすでに完了しています。'
+                )
+                return redirect('account_login')
             
-            else: # 対象のメール情報があり、かつメール未確認
+            else: # 対象のメールアドレス情報があり、かつ確認メール未確認
                 result = send_verification_email_to_address(
                     request, emali_object,
                     verification_stage.login.signup
