@@ -7,7 +7,7 @@ from allauth.account.internal.stagekit import LOGIN_SESSION_KEY
 from django.core import mail
 from django.core.cache import cache
 from django.db import IntegrityError, transaction
-from django.test import TestCase
+from django.test import TestCase, Client
 from django.test.utils import override_settings
 from django.urls import reverse
 
@@ -416,3 +416,57 @@ class ResendingEmailViewTests(TestCase):
         self.assertRedirects(response, '/accounts/confirm-email/')
         self.assertContains(response, expected)
         self.assertEqual(len(mail.outbox), 1)
+
+    # CSRFトークンなしの再送POSTが拒否されることを検証
+    def test_post_without_csrf_token_is_rejected(self):
+        csrf_client = Client(enforce_csrf_checks=True)
+        resend_url = reverse('resend_email')
+        response = csrf_client.post(resend_url)
+        expected_status_code = 403
+
+        self.assertEqual(response.status_code, expected_status_code)
+        self.assertEqual(len(mail.outbox), 0)
+
+    # 正しいトークンを付ければ再送できることを検証
+    def test_post_with_valid_csrf_token_resends_verification_email(self):
+        # 再送対象のユーザーと、そのユーザーに属する未確認メール情報を用意する
+        test_email = 'csrf-test@example.com'
+        test_password = 'd_jan_go'
+        test_user = User.objects.create_user(test_email, test_password)
+        unconfirmed_mail = EmailAddress.objects.create(
+            user=test_user,
+            email=test_user.email,
+            verified=False,
+        )
+
+        # 現在の段階をメール確認待ちとした、ログイン途中情報を作る
+        login = Login(
+            user=unconfirmed_mail.user,
+            email=unconfirmed_mail.email,
+            state={
+                'stages': {
+                    'current': EmailVerificationStage.key
+                    },
+                }
+            )
+
+        # 通常ログインによる初回送信と送信制限を避けるため、途中情報を直接セッションに保存する
+        csrf_client = Client(enforce_csrf_checks=True)
+        test_session = csrf_client.session
+        test_session[LOGIN_SESSION_KEY] = login.serialize()
+        test_session.save()
+
+        path = reverse('account_email_verification_sent')
+        resposnse_with_cookeie = csrf_client.get(path)
+        csrf_token = resposnse_with_cookeie.cookies['csrftoken'].value
+
+        resend_url_post = reverse('resend_email')
+        response_post = csrf_client.post(
+            resend_url_post,
+            data={'csrfmiddlewaretoken': csrf_token},
+            )
+
+        # 再送できたことを検証
+        self.assertRedirects(response_post, '/accounts/confirm-email/')
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [test_email])
