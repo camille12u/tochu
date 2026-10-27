@@ -307,6 +307,10 @@ class ResendingEmailViewTests(TestCase):
         message = 'メールアドレスの確認はすでに完了しています。'
         self.assertContains(response, message)
 
+    # メール確認済み、かつログイン済みのユーザーは再送せずに学習記録一覧画面に遷移することを検証
+    def test_sample(self):
+        pass
+
     # 途中情報はあるが、対象のユーザーを取得できない場合、トップページへ遷移することを検証
     def test_post_with_deleted_user_redirects_to_top(self):
         # 再送対象のユーザーと、そのユーザーに属する確認メール情報を用意する
@@ -470,3 +474,310 @@ class ResendingEmailViewTests(TestCase):
         self.assertRedirects(response_post, '/accounts/confirm-email/')
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, [test_email])
+
+
+class SignupViewTests(TestCase):
+    # 登録のPOST処理によってユーザーが作られることを検証
+    def test_post_with_valid_data_creates_user(self):
+        test_mail = 'user@example.com'
+        test_password = 'test_123_django'
+
+        # 登録処理のURLを取得
+        signup_url = reverse('account_signup')
+        response = self.client.post(
+            signup_url, data={
+            'email': test_mail,
+            'password1': test_password,
+            'password2': test_password,
+            }
+            )
+
+        # 登録の後に確認メール案内画面に遷移することを検証
+        expected_url = reverse('account_email_verification_sent')
+        self.assertRedirects(response, expected_url)
+
+        # 入力したメールアドレスのユーザーが1件作成されたことを検証
+        number = User.objects.filter(email=test_mail).count()
+        self.assertEqual(number, 1)
+
+        # 確認メールの件数と宛先を検証
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [test_mail])
+
+    # パスワードが不一致の場合、ユーザーが作成されないことを検証
+    def test_password_not_match(self):
+        test_mail = 'user@example.com'
+        test_password = 'test_123_django'
+        test_unfair_password = 'test_django'
+
+        # パスワードが不一致でPOSTリクエストを実行
+        signup_url = reverse('account_signup')
+        response = self.client.post(
+            signup_url,
+            data={
+                'email': test_mail,
+                'password1': test_password,
+                'password2': test_unfair_password,
+            }
+        )
+
+        # ステータスコードが200
+        # 入力したメールアドレスで、ユーザが作成されない
+        # メール送信が0
+        self.assertEqual(response.status_code, 200)
+        number = User.objects.filter(email=test_mail).count()
+        self.assertEqual(number, 0)
+        self.assertEqual(len(mail.outbox), 0)
+
+        # パスワードの不一致によるエラーメッセージが表示されるか検証
+        expected_msg = '同じパスワードを入力してください。'
+        self.assertContains(response, expected_msg)
+
+    # メールアドレスの形式が不正な場合に、登録を拒否することを検証
+    def test_invalid_email_address(self):
+        test_mail = 'userexample.com'
+        test_password = 'test_123_django'
+
+        # 登録処理のURLを取得
+        signup_url = reverse('account_signup')
+        response = self.client.post(
+            signup_url, data={
+            'email': test_mail,
+            'password1': test_password,
+            'password2': test_password,
+            }
+            )
+
+        # ステータスコードが200
+        # ユーザが作成されず、メールも0件
+        self.assertEqual(response.status_code, 200)
+        number = User.objects.filter(email=test_mail).count()
+        self.assertEqual(number, 0)
+        self.assertEqual(len(mail.outbox), 0)
+
+        # 不正なメールアドレスによるエラーメッセージが表示されるか検証
+        # print(response.context['form'].errors) でdjangoのフォームのエラーを確認
+        error_message = '有効なメールアドレスを入力してください。'
+        self.assertContains(response, error_message)
+
+    # 短すぎるパスワードでは登録できないことを検証
+    def test_password_too_short(self):
+        test_mail = 'user@example.com'
+        test_password = 'test_00'
+
+        # 登録処理のURLを取得
+        signup_url = reverse('account_signup')
+        response = self.client.post(
+            signup_url, data={
+            'email': test_mail,
+            'password1': test_password,
+            'password2': test_password,
+            }
+            )
+
+        # ステータスコードが200
+        # ユーザが作成されず、メールも0件
+        self.assertEqual(response.status_code, 200)
+        number = User.objects.filter(email=test_mail).count()
+        self.assertEqual(number, 0)
+        self.assertEqual(len(mail.outbox), 0)
+
+        # 短すぎるパスワードによるエラーメッセージが表示されるか検証
+        error_msg = 'このパスワードは短すぎます。最低 8 文字以上必要です。'
+        self.assertContains(response, error_msg)
+
+    # 一般的なパスワードでは登録できないことを検証
+    def test_password_too_common(self):
+        test_mail = 'user@example.com'
+        test_password = 'password'
+
+        # 登録処理のURLを取得
+        signup_url = reverse('account_signup')
+        response = self.client.post(
+            signup_url, data={
+            'email': test_mail,
+            'password1': test_password,
+            'password2': test_password,
+            }
+            )
+
+        # ステータスコードが200
+        # ユーザが作成されず、メールも0件
+        self.assertEqual(response.status_code, 200)
+        number = User.objects.filter(email=test_mail).count()
+        self.assertEqual(number, 0)
+        self.assertEqual(len(mail.outbox), 0)
+
+        # 一般的すぎるパスワードによるエラーメッセージが表示されるか検証
+        error_msg = 'このパスワードは一般的すぎます。'
+        self.assertContains(response, error_msg)
+
+    # 数字のみのパスワードで登録できないことを検証
+    def test_password_only_numbers(self):
+        test_mail = 'user@example.com'
+        test_password = '45451919'
+
+        # 登録処理のURLを取得
+        signup_url = reverse('account_signup')
+        response = self.client.post(
+            signup_url, data={
+            'email': test_mail,
+            'password1': test_password,
+            'password2': test_password,
+            }
+            )
+
+        # ステータスコードが200
+        # ユーザが作成されず、メールも0件
+        self.assertEqual(response.status_code, 200)
+        number = User.objects.filter(email=test_mail).count()
+        self.assertEqual(number, 0)
+        self.assertEqual(len(mail.outbox), 0)
+
+        # 数字だけのパスワードによるエラーメッセージが表示されるか検証
+        error_msg = 'このパスワードは数字しか使われていません。'
+        self.assertContains(response, error_msg)
+
+    # メールアドレスに似すぎるパスワードでは登録できないことを検証
+    def test_password_too_similar_to_email(self):
+        test_mail = 'coco0707@example.com'
+        test_password = 'coco0707'
+
+        # 登録処理のURLを取得
+        signup_url = reverse('account_signup')
+        response = self.client.post(
+            signup_url, data={
+            'email': test_mail,
+            'password1': test_password,
+            'password2': test_password,
+            }
+            )
+        # print(response.context['form'].errors)
+
+        # ステータスコードが200
+        # ユーザが作成されず、メールも0件
+        self.assertEqual(response.status_code, 200)
+        number = User.objects.filter(email=test_mail).count()
+        self.assertEqual(number, 0)
+        self.assertEqual(len(mail.outbox), 0)
+
+        # メールアドレスに似すぎるパスワードのエラーメッセージが表示されるか検証
+        error_msg = 'このパスワードは email と似すぎています。'
+        self.assertContains(response, error_msg)
+
+
+class LoginViewTests(TestCase):
+    # メール確認済みのユーザーが、正しい情報でログインできること
+    def test_email_confirmed_user_can_log_in_successfully(self):
+        test_user = User.objects.create_user(
+            email='test_user@example.com',
+            password='django_123'
+            )
+
+        # メール確認済みユーザーを作成
+        confirmed_mail_user = EmailAddress.objects.create(
+            user=test_user,
+            email=test_user.email,
+            verified=True,
+        )
+
+        login_url = reverse('account_login')
+        response = self.client.post(login_url, data={
+            'login': confirmed_mail_user.email,
+            'password': 'django_123',
+        })
+
+        log_list_url = reverse('log_list')
+        self.assertRedirects(response, log_list_url)
+        self.assertTrue(response.wsgi_request.user.is_authenticated)
+        # print(response.wsgi_request.user, response.wsgi_request.user.is_authenticated)
+
+
+    # メール確認済みのユーザーが、間違ったパスワードではログインできないことを検証
+    def test_cannot_login_with_an_incorrect_password(self):
+        email = 'test_user@example.com'
+        password = 'django_123'
+        test_user = User.objects.create_user(
+            email=email,
+            password=password
+            )
+
+        # メール確認済みユーザーを作成
+        confirmed_mail_user = EmailAddress.objects.create(
+            user=test_user,
+            email=test_user.email,
+            verified=True,
+        )
+
+        login_url = reverse('account_login')
+        response = self.client.post(login_url, data={
+            'login': confirmed_mail_user.email,
+            'password': 'Python_123',
+        })
+        error_msg = '入力されたメールアドレスもしくはパスワードが正しくありません。'
+        # print(response.context['form'].errors)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.wsgi_request.user.is_authenticated)
+        self.assertContains(response, error_msg)
+        # print(response.wsgi_request.user, response.wsgi_request.user.is_authenticated)
+
+    # メール未確認のユーザーが、正しいパスワードでもログインを完了できないことを検証
+    def test_user_with_unverified_email_cannot_log_in(self):
+        email = 'test_user@example.com'
+        password = 'django_123'
+        test_user = User.objects.create_user(
+            email=email,
+            password=password
+            )
+
+        # メール未確認済みユーザーを作成
+        unconfirmed_mail_user = EmailAddress.objects.create(
+            user=test_user,
+            email=test_user.email,
+            verified=False,
+        )
+
+        login_url = reverse('account_login')
+        response = self.client.post(login_url, data={
+            'login': unconfirmed_mail_user.email,
+            'password': password,
+        })
+
+        email_confirm_url = reverse('account_email_verification_sent')
+        self.assertRedirects(response, email_confirm_url)
+        self.assertFalse(response.wsgi_request.user.is_authenticated)
+
+    # メール未確認のユーザーが、学習記録一覧へ直接アクセスしても利用できないことを検証
+    def test_user_with_unverified_email_cannot_access_log_list(self):
+        email = 'test_user@example.com'
+        password = 'django_123'
+        test_user = User.objects.create_user(
+            email=email,
+            password=password
+            )
+
+        # メール未確認済みユーザーを作成
+        unconfirmed_mail_user = EmailAddress.objects.create(
+            user=test_user,
+            email=test_user.email,
+            verified=False,
+        )
+
+        login_url = reverse('account_login') # /accounts/login/
+        response_post = self.client.post(
+            login_url, data={
+                'login': unconfirmed_mail_user.email,
+                'password': password
+            })
+
+        email_confirm_url = reverse('account_email_verification_sent')
+        self.assertRedirects(response_post, email_confirm_url)
+
+        log_list_url = reverse('log_list') # /learning/
+        response_get = self.client.get(log_list_url)
+        # print(f'STATUS_CODE : {response_get.status_code}')
+        # print(f'URL: {response_get.url}, {type(response_get.url)}')
+        expected_url = login_url + '?next=' + log_list_url
+        self.assertEqual(response_get.status_code, 302)
+        self.assertEqual(response_get.url, expected_url)
