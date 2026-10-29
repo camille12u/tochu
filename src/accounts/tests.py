@@ -781,3 +781,284 @@ class LoginViewTests(TestCase):
         expected_url = login_url + '?next=' + log_list_url
         self.assertEqual(response_get.status_code, 302)
         self.assertEqual(response_get.url, expected_url)
+
+
+class LogoutViewTests(TestCase):
+    # ログアウト処理が正常に動作するか検証
+    def test_post_logs_out_user_and_redirects_to_top(self):
+        email = 'logout_user@example.com'
+        password = 'django_123'
+        test_user = User.objects.create_user(
+            email=email,
+            password=password
+            )
+
+        # メール確認済みユーザーを作成
+        confirmed_mail_user = EmailAddress.objects.create(
+            user=test_user,
+            email=test_user.email,
+            verified=True,
+        )
+
+        login_url = reverse('account_login') # /accounts/login/
+        response = self.client.post(
+            login_url, data={
+                'login': confirmed_mail_user.email,
+                'password': password
+            })
+
+        # ログインでき、学習一覧画面に遷移することを検証
+        log_list_url = reverse('log_list')
+        self.assertRedirects(response, log_list_url)
+        self.assertTrue(response.wsgi_request.user.is_authenticated)
+
+        # ログアウトをし、トップページに遷移することを検証
+        logout_url = reverse('account_logout')
+        response = self.client.post(logout_url)
+        self.assertRedirects(response, '/')
+        self.assertFalse(response.wsgi_request.user.is_authenticated)
+
+    # ログアウト後のユーザーは学習記録一覧を利用できないことを検証
+    def test_logged_out_user_cannot_access_log_list(self):
+        email = 'logout_user@example.com'
+        password = 'django_123'
+        test_user = User.objects.create_user(
+            email=email,
+            password=password
+            )
+
+        # メール確認済みユーザーを作成
+        confirmed_mail_user = EmailAddress.objects.create(
+            user=test_user,
+            email=test_user.email,
+            verified=True,
+        )
+
+        login_url = reverse('account_login') # /accounts/login/
+        response = self.client.post(
+            login_url, data={
+                'login': confirmed_mail_user.email,
+                'password': password
+            })
+
+        # ログインでき、学習一覧画面に遷移することを検証
+        log_list_url = reverse('log_list')
+        self.assertRedirects(response, log_list_url)
+        self.assertTrue(response.wsgi_request.user.is_authenticated)
+
+        # ログアウトをし、トップページに遷移することを検証
+        logout_url = reverse('account_logout')
+        response = self.client.post(logout_url)
+        self.assertRedirects(response, '/')
+        self.assertFalse(response.wsgi_request.user.is_authenticated)
+
+        # 学習記録一覧にアクセスできずに、ログイン画面に遷移することを検証
+        response = self.client.get(log_list_url)
+        url = login_url + '?next=' + log_list_url
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, url)
+
+
+class EmailConfirmationViewTests(TestCase):
+    # 確認メールのリンクからメール所有確認を完了するテスト
+    def test_valid_confirmation_link_verifies_email(self):
+        test_mail = 'user123@example.com'
+        test_password = 'test_123_django'
+
+        # 登録処理のURLを取得
+        signup_url = reverse('account_signup')
+        response = self.client.post(
+            signup_url, data={
+            'email': test_mail,
+            'password1': test_password,
+            'password2': test_password,
+            }
+            )
+
+        # 登録の後に確認メール案内画面に遷移することを検証
+        expected_url = reverse('account_email_verification_sent')
+        self.assertRedirects(response, expected_url)
+
+        # 入力したメールアドレスのユーザーが1件作成されたことを検証
+        number = User.objects.filter(email=test_mail).count()
+        self.assertEqual(number, 1)
+
+        # 確認メールの件数と宛先を検証
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [test_mail])
+
+        # 送信されたメールの本文からメール確認用のURLのみを取得
+        # print(f'mail: {mail.outbox[0].body}')
+        confirm_mail = mail.outbox[0].body.splitlines()
+        for value in confirm_mail:
+            if '/accounts/confirm-email/' in value:
+                confirm_mail_url = value
+
+        # print(f'メール確認URL: {confirm_mail_url}')
+        http_idx = confirm_mail_url.find('http')
+        confirm_mail_url = confirm_mail_url[http_idx:].split()[0]
+        # print(confirm_mail_url)
+
+        # メール確認リンクをGETリクエストで成功するか検証
+        response = self.client.get(confirm_mail_url)
+        self.assertEqual(response.status_code, 200)
+
+        # DBからtest_userのemailを取得
+        email = EmailAddress.objects.filter(email=test_mail).get()
+        self.assertFalse(email.verified)
+
+        # 同じ確認URLへPOSTし、verifiedがTrueになることを検証
+        response = self.client.post(confirm_mail_url)
+        email.refresh_from_db() # DBの最新状態をにする
+        self.assertTrue(email.verified)
+
+    # 確認完了後に、正しい情報でログインして学習記録一覧を利用できることを確認
+    def test_user_can_log_in_and_access_log_list_after_email_confirmation(self):
+        test_mail = 'user456@example.com'
+        test_password = 'test_456_django'
+
+        # 登録処理のURLを取得
+        signup_url = reverse('account_signup')
+        response = self.client.post(
+            signup_url, data={
+            'email': test_mail,
+            'password1': test_password,
+            'password2': test_password,
+            }
+            )
+
+        # 登録の後に確認メール案内画面に遷移することを検証
+        expected_url = reverse('account_email_verification_sent')
+        self.assertRedirects(response, expected_url)
+
+        # 入力したメールアドレスのユーザーが1件作成されたことを検証
+        number = User.objects.filter(email=test_mail).count()
+        self.assertEqual(number, 1)
+
+        # 確認メールの件数と宛先を検証
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [test_mail])
+
+        # 送信されたメールの本文からメール確認用のURLのみを取得
+        confirm_mail = mail.outbox[0].body.splitlines()
+        for value in confirm_mail:
+            if '/accounts/confirm-email/' in value:
+                confirm_mail_url = value
+
+        http_idx = confirm_mail_url.find('http')
+        confirm_mail_url = confirm_mail_url[http_idx:].split()[0]
+
+        # メール確認リンクをGETリクエストで成功するか検証
+        response = self.client.get(confirm_mail_url)
+        self.assertEqual(response.status_code, 200)
+
+        # DBからtest_userのemailを取得
+        email = EmailAddress.objects.filter(email=test_mail).get()
+        self.assertFalse(email.verified)
+
+        # 同じ確認URLへPOSTし、verifiedがTrueになることを検証
+        response = self.client.post(confirm_mail_url)
+        email.refresh_from_db() # DBの最新状態をにする
+        self.assertTrue(email.verified)
+
+        # ログインして学習記録一覧に遷移することができる検証
+        login_url = reverse('account_login')
+        response = self.client.post(
+            login_url, data={
+                'login': test_mail,
+                'password':test_password
+                })
+        self.assertRedirects(response, '/learning/')
+        self.assertTrue(response.wsgi_request.user.is_authenticated)
+
+        response = self.client.get('/learning/')
+        self.assertEqual(response.status_code, 200)
+
+    # 無効なメール確認リンク(キーが正しくない)では、所有確認が完了しないことを検証
+    def test_invalid_confirmation_link_does_not_verify_email(self):
+        email = 'django_user@example.com'
+        password = 'un_un_1919'
+        test_user = User.objects.create_user(
+            email=email,
+            password=password
+            )
+
+        # メール未確認済みユーザーを作成
+        unconfirmed_mail_user = EmailAddress.objects.create(
+            user=test_user,
+            email=test_user.email,
+            verified=False,
+        )
+
+        # 無効な確認キーを含むURLを作成
+        invalid_link = reverse(
+            'account_confirm_email', 
+            kwargs={
+                'key': 'invalid-key'
+            }
+            )
+
+        response = self.client.get(invalid_link)
+        # print(f'ページ本文: {response.content.decode()}')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'メールアドレス確認用のリンクが不正か、期限が切れています。')
+
+        # メールが未確認のままなのを検証
+        unconfirmed_mail_user.refresh_from_db()
+        self.assertFalse(unconfirmed_mail_user.verified)
+
+    # 期限切れの確認リンクでは、所有確認が完了しないことを検証
+    def test_expired_confirmation_link_does_not_verify_email(self):
+        test_mail = 'user789@example.com'
+        test_password = 'test_789_django'
+
+        # 登録処理のURLを取得
+        signup_url = reverse('account_signup')
+        response = self.client.post(
+            signup_url, data={
+            'email': test_mail,
+            'password1': test_password,
+            'password2': test_password,
+            }
+            )
+
+        # 登録の後に確認メール案内画面に遷移することを検証
+        expected_url = reverse('account_email_verification_sent')
+        self.assertRedirects(response, expected_url)
+
+        # 入力したメールアドレスのユーザーが1件作成されたことを検証
+        number = User.objects.filter(email=test_mail).count()
+        self.assertEqual(number, 1)
+
+        # 確認メールの件数と宛先を検証
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [test_mail])
+
+        # 送信されたメールの本文からメール確認用のURLのみを取得
+        confirm_mail = mail.outbox[0].body.splitlines()
+        for value in confirm_mail:
+            if '/accounts/confirm-email/' in value:
+                confirm_mail_url = value
+
+        http_idx = confirm_mail_url.find('http')
+        confirm_mail_url = confirm_mail_url[http_idx:].split()[0]
+
+        # print(f'リンクの有効期限: {app_settings.EMAIL_CONFIRMATION_EXPIRE_DAYS}日')
+        seconds_of_expiry = 86400 * app_settings.EMAIL_CONFIRMATION_EXPIRE_DAYS
+        # print(second_of_expiry)
+
+        # 有効期限を1秒過ぎた未来の時刻を設定
+        # print(f'現在時刻: {time.time()}')
+        expired = time.time() + seconds_of_expiry + 1
+
+        # 期限判定に使う時計を一時的に差し替える
+        with patch('django.core.signing.time.time', return_value=expired):
+            response = self.client.get(confirm_mail_url)
+
+        self.assertEqual(response.status_code, 200)
+        # print(f'内容: {response.content.decode()}')
+        self.assertContains(response, 'メールアドレス確認用のリンクが不正か、期限が切れています。')
+
+        # GET後にDBからメール情報を取得しても、verifiedがFalse
+        email = EmailAddress.objects.filter(email=test_mail).get()
+        self.assertFalse(email.verified)

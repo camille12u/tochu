@@ -31,9 +31,9 @@
             {% endelement %}
         {% endif %}
     {% else %}
-        {% url 'account_email' as email_url %}
+    {% url 'account_login' as login %}
         {% element p %}
-            {% blocktrans %}This email confirmation link expired or is invalid. Please <a href="{{ email_url }}">issue a new email confirmation request</a>.{% endblocktrans %}
+            {% blocktrans %}メールアドレス確認用のリンクが不正か、期限が切れています。 <a href="{{ login }}">ログイン</a>から確認手続きをやり直してください。{% endblocktrans %}
         {% endelement %}
     {% endif %}
 {% endblock content %}
