@@ -784,6 +784,8 @@ class LoginViewTests(TestCase):
 
 
 class LogoutViewTests(TestCase):
+    """ログアウト処理と、ログアウト後のアクセス制限を検証するクラス"""
+
     # ログアウト処理が正常に動作するか検証
     def test_post_logs_out_user_and_redirects_to_top(self):
         email = 'logout_user@example.com'
@@ -860,6 +862,11 @@ class LogoutViewTests(TestCase):
 
 
 class EmailConfirmationViewTests(TestCase):
+    """
+    メール所有確認の処理、確認完了後の利用、
+    無効・期限切れリンクへの対応を検証するクラス。
+    """
+
     # 確認メールのリンクからメール所有確認を完了するテスト
     def test_valid_confirmation_link_verifies_email(self):
         test_mail = 'user123@example.com'
