@@ -1109,7 +1109,7 @@ class EmailConfirmationViewTests(TestCase):
         email = EmailAddress.objects.filter(email=test_mail).get()
         self.assertFalse(email.verified)
 
-    # 無効リンクの案内文内に、ログインへのリンクが表示されることを検証
+    # 無効リンクの案内文に、ログインへのリンクが表示されることを検証
     def test_invalid_confirmation_page_provides_login_link(self):
         # 無効な確認キーを含むURLを作成
         invalid_link = reverse(
