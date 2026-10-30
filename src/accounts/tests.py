@@ -4,6 +4,7 @@ from unittest.mock import patch
 from allauth.account import app_settings
 from allauth.account.models import EmailAddress, Login
 from allauth.account.internal.stagekit import LOGIN_SESSION_KEY
+from django.contrib.messages import WARNING, get_messages
 from django.core import mail
 from django.core.cache import cache
 from django.db import IntegrityError, transaction
@@ -307,9 +308,47 @@ class ResendingEmailViewTests(TestCase):
         message = 'メールアドレスの確認はすでに完了しています。'
         self.assertContains(response, message)
 
-    # メール確認済み、かつログイン済みのユーザーは再送せずに学習記録一覧画面に遷移することを検証
-    def test_sample(self):
-        pass
+    # ログイン済みかつメール確認済みで、古いタブから再送POSTした場合、ログイン状態を維持し
+    # 学習一覧画面に遷移することを検証
+    def test_post_with_verified_logged_in_user_redirects_to_log_list(self):
+        # テストユーザー作成
+        email = 'tochu_user@example.com'
+        password = 'django_4545'
+        test_user = User.objects.create_user(email, password)
+
+        # メール確認済みユーザーを作成
+        confirmed_mail_user = EmailAddress.objects.create(
+            user=test_user,
+            email=test_user.email,
+            verified=True,
+        )
+
+        # ログイン処理
+        login_url = reverse('account_login')
+        response = self.client.post(login_url, data={
+            'login': confirmed_mail_user.email,
+            'password': password,
+        })
+
+        # ログイン成功し、学習記録一覧へ遷移することを確認
+        self.assertRedirects(response, '/learning/')
+        self.assertTrue(response.wsgi_request.user.is_authenticated)
+
+        # 再送URLへ直接POST(再送ボタンを押す)
+        url = reverse('resend_email')
+        response = self.client.post(url)
+
+        # 次の4点を検証。
+        # 一覧へ直接転送される。メール0通。ログイン状態が維持される。警告なし。
+        self.assertRedirects(response, '/learning/')
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertTrue(response.wsgi_request.user.is_authenticated)
+
+        result = any(
+            msg.level == WARNING for msg in get_messages(response.wsgi_request)
+            )
+        self.assertFalse(result)
+
 
     # 途中情報はあるが、対象のユーザーを取得できない場合、トップページへ遷移することを検証
     def test_post_with_deleted_user_redirects_to_top(self):
@@ -1069,3 +1108,73 @@ class EmailConfirmationViewTests(TestCase):
         # GET後にDBからメール情報を取得しても、verifiedがFalse
         email = EmailAddress.objects.filter(email=test_mail).get()
         self.assertFalse(email.verified)
+
+    # 無効リンクの案内文内に、ログインへのリンクが表示されることを検証
+    def test_invalid_confirmation_page_provides_login_link(self):
+        # 無効な確認キーを含むURLを作成
+        invalid_link = reverse(
+            'account_confirm_email', 
+            kwargs={
+                'key': 'invalid-key'
+            }
+            )
+
+        # GETリクエストが200になることを検証
+        response = self.client.get(invalid_link)
+        self.assertEqual(response.status_code, 200)
+
+        # print(response.content.decode())
+        login_url = reverse('account_login')
+        expected_html = f'''
+        <p>メールアドレス確認用のリンクが不正か、期限が切れています。 
+        <a href="{login_url}">ログイン</a>から確認手続きをやり直してください。</p>
+        '''
+        self.assertContains(response, expected_html, html=True)
+
+
+class TochuEmailVerificationSentViewTests(TestCase):
+    """
+    確認済みメールのユーザーでログインし、案内画面へGETして、
+    一覧への転送・メール0通・警告なし・ログイン状態維持を検証するクラス
+    """
+
+    # メール確認済みかつログイン済みがメール確認案内画面にアクセスすると一覧に遷移することを検証
+    def test_verified_logged_in_user_is_redirected_from_verification_sent_page(self):
+        # テストユーザー作成
+        email = 'tochu_user@example.com'
+        password = 'django_4545'
+        test_user = User.objects.create_user(email, password)
+
+        # メール確認済みユーザーを作成
+        confirmed_mail_user = EmailAddress.objects.create(
+            user=test_user,
+            email=test_user.email,
+            verified=True,
+        )
+
+        # ログイン処理
+        login_url = reverse('account_login')
+        response = self.client.post(login_url, data={
+            'login': confirmed_mail_user.email,
+            'password': password,
+        })
+
+        # ログイン成功し、学習記録一覧へ遷移することを確認
+        self.assertRedirects(response, '/learning/')
+        self.assertTrue(response.wsgi_request.user.is_authenticated)
+
+        # 案内画面へGET
+        url = reverse('account_email_verification_sent')
+        response = self.client.get(url, follow=True) # リダイレクトするからfollow=True
+        # print(f'結果: {response.content.decode()}')
+
+        # 一覧画面に遷移、メールが送信されない、ログイン状態が維持されることを検証
+        self.assertRedirects(response, '/learning/')
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertTrue(response.wsgi_request.user.is_authenticated)
+
+        # 警告メッセージがないことを検証
+        result = any(
+            msg.level == WARNING for msg in get_messages(response.wsgi_request)
+            )
+        self.assertFalse(result)

@@ -1,15 +1,25 @@
-from django.contrib import messages
-from django.shortcuts import redirect
-from django.views.generic import View
 from allauth.account.internal.flows.email_verification import (
     get_address_for_login,
     send_verification_email_to_address,
     )
-from allauth.account.stages import LoginStageController, EmailVerificationStage
+from allauth.account.models import EmailAddress
+from allauth.account.stages import (
+    LoginStageController, 
+    EmailVerificationStage,
+    )
+from allauth.account.views import EmailVerificationSentView
+from django.contrib import messages
+from django.shortcuts import redirect
+from django.views.generic import View
 
 
 class ResendingEmailView(View):
     def post(self, request, *args, **kwargs):
+        # ログイン済みかつメール確認済みで直接再送URLへPOST
+        if request.user.is_authenticated:
+            if EmailAddress.objects.filter(user=request.user, verified=True).exists():
+                return redirect('/learning/')
+
         # 同じブラウザに保持された、有効なメール確認待ちの手続きを取得する
         key = EmailVerificationStage.key
         verification_stage = LoginStageController.enter(request, stage_key=key)
@@ -62,3 +72,15 @@ class ResendingEmailView(View):
                 # 確認メール送信済み画面へ遷移
                 # /accounts/confirm-email/
                 return redirect('account_email_verification_sent')
+
+
+class TochuEmailVerificationSentView(EmailVerificationSentView):
+    """TOCHU用の、確認メール送信済み案内画面を扱うView"""
+    def get(self, request, *args, **kwargs):
+        if request.user.is_authenticated:
+            # ログインユーザーのメールがある、かつそのメールが確認済みを検索し
+            # それらが存在するか判定
+            if EmailAddress.objects.filter(user=request.user, verified=True).exists():
+                return redirect('/learning/') # 学習記録一覧へ遷移
+
+        return super().get(request)
