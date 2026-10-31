@@ -119,10 +119,68 @@ class ResendingEmailViewTests(TestCase):
     # セッション内の途中情報がない状態でPOSTすると、ログイン画面へ転送される検証
     def test_post_without_pending_login_redirects_to_login(self):
         path = reverse('resend_email')
-        response = self.client.post(path)
+        response = self.client.post(path, follow=True)
+        # follow=Trueを与えると、クライアントはすべてのリダイレクトを辿り、
+        # 途中のURLとステータスコードのタプルが、レスポンスオブジェクトの、
+        # redirect_chain 属性に追加される
+        # print(response.redirect_chain)
 
         self.assertRedirects(response, '/accounts/login/')
         self.assertEqual(len(mail.outbox), 0)
+
+        # 警告メッセージがあることを検証
+        result = any(
+            msg.level == WARNING for msg in get_messages(response.wsgi_request)
+            )
+        self.assertTrue(result)
+
+        # 警告メッセージがログイン画面に表示されているか検証
+        expected_message = '確認手続きを続けられませんでした。もう一度ログインしてください。'
+        self.assertContains(response, expected_message)
+
+    # 登録済みメールで再登録を試み、案内画面から再送した場合の動作を検証
+    def test_resend_after_signup_with_existing_email_redirects_to_top(self):
+        # 再送対象のユーザーと、そのユーザーに属する確認メール情報を用意する
+        test_email = 'sampleee@example.com'
+        test_password = 'dddjango_123'
+        test_user = User.objects.create_user(test_email, test_password)
+        confirmed_mail = EmailAddress.objects.create(
+            user=test_user,
+            email=test_user.email,
+            verified=True,
+        )
+
+        # 同じメールアドレスを登録フォームにPOSTする
+        signup_url = reverse('account_signup')
+        response = self.client.post(signup_url, data={
+            'email': test_email,
+            'password1': test_password,
+            'password2': test_password,
+        })
+
+        # 確認メール送信画面へ遷移したか検証
+        self.assertRedirects(response, '/accounts/confirm-email/')
+
+        # 同じメールアドレスのユーザーが1件のままを検証
+        user_count = User.objects.filter(email=test_email).count()
+        self.assertEqual(user_count, 1)
+        mail_count_before_resend = len(mail.outbox)
+
+        # 再送URLへPOSt
+        resend_url = reverse('resend_email')
+        response = self.client.post(resend_url, follow=True)
+
+        # トップページに遷移、メール件数が増えていないことを検証
+        self.assertRedirects(response, '/')
+        self.assertEqual(len(mail.outbox), mail_count_before_resend)
+
+        # 警告メッセージが存在し、表示されていることを確認
+        result = any(
+            msg.level == WARNING for msg in get_messages(response.wsgi_request)
+            )
+        self.assertTrue(result)
+        expected_message = '確認手続きを続けられませんでした。ログイン、または会員登録からやり直してください'
+        self.assertContains(response, expected_message)
 
     # セッション内の途中情報が期限切れの場合、再送しないことを検証
     def test_post_with_expired_pending_login_redirects_to_login(self):
@@ -175,8 +233,10 @@ class ResendingEmailViewTests(TestCase):
         self.assertEqual(response.status_code, expected)
         self.assertEqual(len(mail.outbox), 0)
 
-    # 有効なログイン途中情報がある状態でPOSTすると、確認メールを再送する
-    def test_post_with_valid_pending_login_resends_verification_email(self):
+
+    # 再送だけでは未確認・未ログインの状態が維持され、
+    # 再送メールのリンクで所有確認後、ログインして学習記録一覧を利用できることを検証
+    def test_user_can_confirm_resent_email_and_access_log_list(self):
         # 再送対象のユーザーと、そのユーザーに属する未確認メール情報を用意する
         test_email = 'sample@example.com'
         test_password = 'd_jan_go'
@@ -211,6 +271,33 @@ class ResendingEmailViewTests(TestCase):
         self.assertRedirects(response, '/accounts/confirm-email/')
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, [test_email])
+
+        # 再送しただけでは、メール確認もログインも完了しないことを検証
+        unconfirmed_mail.refresh_from_db()
+        self.assertFalse(unconfirmed_mail.verified)
+        self.assertFalse(response.wsgi_request.user.is_authenticated)
+
+        # 確認メールのリンクを取得
+        values = mail.outbox[-1].body.splitlines()
+        target_url = [value for value in values if '/accounts/confirm-email/' in value]
+        url_idx = target_url[0].find('http')
+        resend_email_url = target_url[0][url_idx:].split()[0]
+
+        # メール確認が完了し、ログインができ一覧画面に遷移することを検証
+        response = self.client.post(resend_email_url)
+        unconfirmed_mail.refresh_from_db()
+        self.assertTrue(unconfirmed_mail.verified)
+
+        login_url = reverse('account_login')
+        response = self.client.post(
+            login_url, 
+            data={'login': test_email, 'password': test_password}, 
+            follow=True
+            )
+        # print(response.redirect_chain)
+        self.assertTrue(response.wsgi_request.user.is_authenticated)
+        self.assertRedirects(response, '/learning/')
+        self.assertEqual(response.status_code, 200)
 
     # 対象メール情報を取得できない場合、ログイン画面に遷移
     @patch('accounts.views.get_address_for_login', return_value=None)
