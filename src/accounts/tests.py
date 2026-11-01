@@ -164,9 +164,16 @@ class ResendingEmailViewTests(TestCase):
         # 同じメールアドレスのユーザーが1件のままを検証
         user_count = User.objects.filter(email=test_email).count()
         self.assertEqual(user_count, 1)
-        mail_count_before_resend = len(mail.outbox)
+        mail_count_before_resend = len(mail.outbox) # 1
 
-        # 再送URLへPOSt
+        # メール本文にログインURLとパスワードリセットURLがあることを検証
+        # print(mail.outbox[-1].body)
+        login_url = f'http://testserver{reverse('account_login')}'
+        password_reset_url = f'http://testserver{reverse('account_reset_password')}'
+        self.assertIn(login_url, mail.outbox[-1].body)
+        self.assertIn(password_reset_url, mail.outbox[-1].body)
+
+        # 再送URLへPOST
         resend_url = reverse('resend_email')
         response = self.client.post(resend_url, follow=True)
 
@@ -181,6 +188,7 @@ class ResendingEmailViewTests(TestCase):
         self.assertTrue(result)
         expected_message = '確認手続きを続けられませんでした。ログイン、または会員登録からやり直してください'
         self.assertContains(response, expected_message)
+
 
     # セッション内の途中情報が期限切れの場合、再送しないことを検証
     def test_post_with_expired_pending_login_redirects_to_login(self):
@@ -988,11 +996,10 @@ class LogoutViewTests(TestCase):
 
 
 class EmailConfirmationViewTests(TestCase):
+    """メール所有確認テスト
+    
+    確認処理、確認完了後の利用、無効・期限切れリンクへの対応を検証する
     """
-    メール所有確認の処理、確認完了後の利用、
-    無効・期限切れリンクへの対応を検証するクラス。
-    """
-
     # 確認メールのリンクからメール所有確認を完了するテスト
     def test_valid_confirmation_link_verifies_email(self):
         test_mail = 'user123@example.com'
@@ -1220,7 +1227,8 @@ class EmailConfirmationViewTests(TestCase):
 
 
 class TochuEmailVerificationSentViewTests(TestCase):
-    """
+    """メール確認済みユーザーテスト
+    
     確認済みメールのユーザーでログインし、案内画面へGETして、
     一覧への転送・メール0通・警告なし・ログイン状態維持を検証するクラス
     """

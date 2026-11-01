@@ -1,0 +1,20 @@
+{% extends "account/email/base_message.txt" %}
+{% load i18n %}
+
+{% block content %}{% autoescape off %}{% blocktrans %}
+あなた、または第三者が、次のメールアドレスを使用してTOCHUへの新規登録を試みました。
+
+{{ email }}
+
+このメールアドレスは、すでにTOCHUに登録されています。新しいアカウントは作成されていません。
+
+■ ログインする場合
+以下のログイン画面から、登録済みのメールアドレスとパスワードでログインしてください。
+{{ login_url }}
+
+■ パスワードをお忘れの場合
+以下のページから、パスワード再設定の手続きを行ってください。
+{{ password_reset_url }}
+
+この登録操作に心当たりがない場合は、このメールを無視してください。
+{% endblocktrans %}{% endautoescape %}{% endblock content %}

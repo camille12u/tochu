@@ -33,6 +33,9 @@ ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
 ACCOUNT_LOGIN_METHODS = {'email'}
 ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
 
+# 登録済み通知メールにログインURLを追加するTOCHU用Adapterを使用する
+ACCOUNT_ADAPTER = 'accounts.adapter.TochuAccountAdapter'
+
 # ログイン成功後の標準の移動先
 LOGIN_REDIRECT_URL = '/learning/'
 
