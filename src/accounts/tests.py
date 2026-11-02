@@ -1141,7 +1141,7 @@ class EmailConfirmationViewTests(TestCase):
         response = self.client.get(invalid_link)
         # print(f'ページ本文: {response.content.decode()}')
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'メールアドレス確認用のリンクが不正か、期限が切れています。')
+        self.assertContains(response, 'メールアドレス確認用のリンクが無効か、期限が切れています。')
 
         # メールが未確認のままなのを検証
         unconfirmed_mail_user.refresh_from_db()
@@ -1197,7 +1197,7 @@ class EmailConfirmationViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         # print(f'内容: {response.content.decode()}')
-        self.assertContains(response, 'メールアドレス確認用のリンクが不正か、期限が切れています。')
+        self.assertContains(response, 'メールアドレス確認用のリンクが無効か、期限が切れています。')
 
         # GET後にDBからメール情報を取得しても、verifiedがFalse
         email = EmailAddress.objects.filter(email=test_mail).get()
@@ -1220,8 +1220,8 @@ class EmailConfirmationViewTests(TestCase):
         # print(response.content.decode())
         login_url = reverse('account_login')
         expected_html = f'''
-        <p>メールアドレス確認用のリンクが不正か、期限が切れています。 
-        <a href="{login_url}">ログイン</a>から確認手続きをやり直してください。</p>
+        <p>メールアドレス確認用のリンクが無効か、期限が切れています。 <a href="{login_url}">ログイン</a>から確認手続きをやり直してください。
+        また、確認メールを再送するには、ログイン画面で登録したメールアドレスとパスワードを入力してください。メールアドレスが未確認の場合、新しい確認メールを送信します。</p>
         '''
         self.assertContains(response, expected_html, html=True)
 

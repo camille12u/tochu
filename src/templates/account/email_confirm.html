@@ -33,7 +33,10 @@
     {% else %}
     {% url 'account_login' as login %}
         {% element p %}
-            {% blocktrans %}メールアドレス確認用のリンクが不正か、期限が切れています。 <a href="{{ login }}">ログイン</a>から確認手続きをやり直してください。{% endblocktrans %}
+            {% blocktrans %}
+            メールアドレス確認用のリンクが無効か、期限が切れています。 <a href="{{ login }}">ログイン</a>から確認手続きをやり直してください。
+            また、確認メールを再送するには、ログイン画面で登録したメールアドレスとパスワードを入力してください。メールアドレスが未確認の場合、新しい確認メールを送信します。
+            {% endblocktrans %}
         {% endelement %}
     {% endif %}
 {% endblock content %}
