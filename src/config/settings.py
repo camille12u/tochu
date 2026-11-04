@@ -7,21 +7,30 @@ from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
-# Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
+# 環境変数ファイルを読み込む
 load_dotenv(BASE_DIR.parent / '.env')
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
 
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
 if not SECRET_KEY:
     raise ImproperlyConfigured('DJANGO_SECRET_KEYが未設定または空欄')
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# DJANGO_DEBUGが'true'のときだけデバッグを有効にする
+# 未設定時は無効にし、エラー詳細の意図しない公開を防ぐ
+DJANGO_DEBUG = os.environ.get('DJANGO_DEBUG')
+if DJANGO_DEBUG == 'true':
+    DEBUG = True
+else:
+    DEBUG = False
 
-ALLOWED_HOSTS = []
+# ローカルで使用するホスト名を許可する
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
+
+# Renderが自動設定する公開ホスト名を取得し、値がある場合だけ許可する
+RENDER_HOST = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
+if RENDER_HOST:
+    ALLOWED_HOSTS.append(RENDER_HOST)
 
 # 認証・アカウント情報
 AUTH_USER_MODEL = 'accounts.User'
