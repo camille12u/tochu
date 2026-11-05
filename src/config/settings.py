@@ -33,7 +33,7 @@ if RENDER_HOST:
     ALLOWED_HOSTS.append(RENDER_HOST)
 
 # Render環境時にCookieをHTTPS通信の場合だけ送信するよう設定
-# それぞれのデフォルト設定は
+# それぞれのデフォルト設定はFalse
 RENDER = os.environ.get('RENDER')
 if RENDER == 'true':
     SESSION_COOKIE_SECURE = True
