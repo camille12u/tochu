@@ -32,6 +32,13 @@ RENDER_HOST = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
 if RENDER_HOST:
     ALLOWED_HOSTS.append(RENDER_HOST)
 
+# Render環境時にCookieをHTTPS通信の場合だけ送信するよう設定
+# それぞれのデフォルト設定は
+RENDER = os.environ.get('RENDER')
+if RENDER == 'true':
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
 # 認証・アカウント情報
 AUTH_USER_MODEL = 'accounts.User'
 AUTHENTICATION_BACKENDS = [
