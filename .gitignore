@@ -22,5 +22,8 @@ db.sqlite3-*
 .env.*
 !.env.example
 
-# # 個人用の仕様書・ロードマップ
+# 個人用の仕様書・ロードマップ
 /docs/
+
+# collectstaticで生成される公開用の静的ファイル
+src/staticfiles/

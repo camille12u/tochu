@@ -5,3 +5,4 @@ sqlparse==0.6.0
 django-allauth==65.20.0
 gunicorn==26.2.0
 psycopg[binary]==3.3.8
+whitenoise==6.12.0
