@@ -39,8 +39,8 @@ class ResendingEmailView(View):
                 '確認手続きを続けられませんでした。もう一度ログインしてください。'
                 )
             logger.warning(
-                '「メール確認待ちのログイン途中情報がない、'
-                'または期限切れのため再送処理が完了しませんでした」'
+                'メール確認待ちのログイン途中情報がない、'
+                'または期限切れのため再送処理が完了しませんでした'
                 )
             return redirect('account_login')
 
@@ -82,7 +82,7 @@ class ResendingEmailView(View):
                 
                 if email_sent:
                     # 再送に成功した場合は、成功ログを記録して案内画面へ戻す
-                    logger.info('「確認メールの再送処理が完了しました」')
+                    logger.info('確認メールの再送処理が完了しました')
                     return redirect('account_email_verification_sent')
 
                 # 送信制限で再送できなかった場合は、利用者へ案内を表示する
