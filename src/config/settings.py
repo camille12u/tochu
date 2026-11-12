@@ -24,8 +24,8 @@ if DJANGO_DEBUG == 'true':
 else:
     DEBUG = False
 
-# ローカルで使用するホスト名を許可する
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
+# ローカルで使用するホスト名に独自ドメイン名を追加
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'tochulog.com']
 
 # Renderが自動設定する公開ホスト名を取得し、値がある場合だけ許可する
 RENDER_HOST = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
@@ -55,8 +55,16 @@ ACCOUNT_ADAPTER = 'accounts.adapter.TochuAccountAdapter'
 # ログイン成功後の標準の移動先
 LOGIN_REDIRECT_URL = '/learning/'
 
-# 開発用メール設定
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+# メール設定
+if DEBUG:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+else:
+    # Resend
+    EMAIL_BACKEND = 'anymail.backends.resend.EmailBackend'
+    ANYMAIL = {
+        'RESEND_API_KEY': os.environ.get('RESEND_API_KEY'),
+    }
+    DEFAULT_FROM_EMAIL = 'onboarding@resend.dev'
 
 # Application definition
 INSTALLED_APPS = [
@@ -70,6 +78,7 @@ INSTALLED_APPS = [
     'learning.apps.LearningConfig',
     'allauth',
     'allauth.account',
+    'anymail',
 ]
 
 MIDDLEWARE = [
