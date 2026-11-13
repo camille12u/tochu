@@ -64,7 +64,11 @@ else:
     ANYMAIL = {
         'RESEND_API_KEY': os.environ.get('RESEND_API_KEY'),
     }
-    DEFAULT_FROM_EMAIL = 'onboarding@resend.dev'
+    DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL')
+
+    # 空または未設定ならResendのデフォルトアドレスを使用
+    if not DEFAULT_FROM_EMAIL:
+        DEFAULT_FROM_EMAIL = 'onboarding@resend.dev'
 
 # Application definition
 INSTALLED_APPS = [
